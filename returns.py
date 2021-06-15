@@ -33,13 +33,11 @@ for newcol in ['1d index', '5d index', '1m index']:
 def get_returns(date, time):
     times = {'1d':1, '5d':5, '1m':22}
     stock_prices = index_prices[(index_prices['Date'] >= pd.to_datetime(date))]
-    # print(stock_prices.iloc[times[time], 4], stock_prices.iloc[0, 4])
     try:
         return float(stock_prices.iloc[times[time], 4].replace(',', '')) / float(stock_prices.iloc[0, 4].replace(',', '')) - 1
     except:
         return None
 
-print(senate_transactions_w_returns.apply(lambda row: get_returns(row.transaction_date, '1d'), axis = 1))
 senate_transactions_w_returns['1d index'] = senate_transactions_w_returns.apply(lambda row: get_returns(row.transaction_date, '1d'), axis = 1)
 senate_transactions_w_returns['5d index'] = senate_transactions_w_returns.apply(lambda row: get_returns(row.transaction_date, '5d'), axis = 1)
 senate_transactions_w_returns['1m index'] = senate_transactions_w_returns.apply(lambda row: get_returns(row.transaction_date, '1m'), axis = 1)
@@ -58,4 +56,4 @@ for index, row in senate_transactions_w_returns.iterrows():
         senate_transactions_w_returns.at[index, committee] = 1
     
 print(senate_transactions_w_returns.head(5))
-senate_transactions_w_returns.to_csv('temp.csv')
+senate_transactions_w_returns.to_csv('senate_transactions_committee_benchmark.csv')
