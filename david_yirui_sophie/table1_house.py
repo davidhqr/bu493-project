@@ -8,11 +8,12 @@ fig = plt.figure()
 ax = fig.add_subplot(111)
 col_labels = ['Unit', 'N', 'Mean', 'SD', 'Min', 'P25', 'Median', 'P75', 'Max']
 # row_labels = ['Age', 'Buy or Sell', 'Years in Office', 'Party']
-row_labels = ['Age', 'Years in Office', 'Party', 'Buy or Sell', 'Amount', 'Market Cap', 'Market Cap All Trades']
+row_labels = ['Age', 'Years in Office', 'Party', 'Buy or Sell', 'Amount', 'Market Cap', 'Market Cap All Trades', 'Reps that trade age', 'Reps that trade years in office']
 table_vals = []
 
 house_transactions = pd.read_csv('house_transactions.csv')
 house_members = pd.read_csv('house_members.csv')
+house_returns = pd.read_csv('house_returns.csv')
 market_cap = pd.read_csv('MarketCap_Dec31_2020.csv')
 
 house_transactions = house_transactions[house_transactions.apply(lambda x: x['ticker'] != '--', axis=1)]
@@ -20,30 +21,46 @@ house_transactions = house_transactions[house_transactions.apply(lambda x: x['ti
 pd.set_option('display.max_rows', None)  
 pd.set_option('display.max_columns', None)  
 
+house_members['name'] = house_members['name'].str.split(' ').str[0] + house_members['name'].str.split(' ').str[-1]
+house_transactions['representative'] = house_transactions['representative'].str.split(' ').str[1] + house_transactions['representative'].str.split(' ').str[-1]
+
 house_members = house_members[house_members.apply(lambda x: x['Party'] == 'Democratic' or x['Party'] == 'Republican', axis=1)]
 
 end_date = datetime.date(2020, 12, 31)
 
+#age
 # time_difference = end_date - birth_date
 house_members['Born'] = pd.to_datetime(house_members['Born'])
 house_members['today'] = '2021-05-31'
 house_members['today'] = pd.to_datetime(house_members['today'])
 house_members['age'] = np.floor((house_members['today'] - house_members['Born']).dt.days / 365.2425)
-table_vals.append(['Date'] + np.round(house_members.describe()['age'].values, decimals=2).tolist())
+
+house_returns['born'] = pd.to_datetime(house_returns['born'])
+house_returns['today'] = '2021-05-31'
+house_returns['today'] = pd.to_datetime(house_returns['today'])
+house_returns['age'] = np.floor((house_returns['today'] - house_returns['born']).dt.days / 365.2425)
+
+table_vals.append(['Years'] + np.round(house_members.describe()['age'].values, decimals=2).tolist())
 
 # years in office
 house_members['Assumed office'] = pd.to_datetime(house_members['Assumed office'])
 house_members['Years in office'] = 2020 - house_members['Assumed office'].dt.year
-table_vals.append(['Number'] + np.round(house_members.describe()['Years in office'].values, decimals=2).tolist())
+
+house_returns['assumed_office'] = pd.to_datetime(house_returns['assumed_office'])
+house_returns['Years in office'] = 2020 - house_returns['assumed_office'].dt.year
+
+table_vals.append(['Years'] + np.round(house_members.describe()['Years in office'].values, decimals=2).tolist())
 
 # party
 house_members['Party'] = house_members['Party'].map({'Democratic': 1, 'Republican': 0})
 table_vals.append(['Democratic: 1,\nRepublican: 0'] + np.round(house_members.describe()['Party'].values, decimals=2).tolist())
 
+house_transactions = house_transactions.merge(house_members, left_on='representative', right_on='name')
+print('Proportion democratic trades:', np.sum(house_transactions['Party']) / len(house_transactions['Party']))
+
 # direction
 house_transactions['direction'] = house_transactions['type'].map(lambda x: 1 if x == 'purchase' else 0)
-# print(senate_transactions['direction'])
-table_vals.append(['Purchase: 1,\nSell: 0'] + np.round(house_transactions.describe()['direction'].values, decimals=2).tolist())
+print('Proportion of buys:', np.sum(house_transactions['direction']) / len(house_transactions['direction']))
 
 # amount
 house_transactions = house_transactions[house_transactions.apply(lambda x: x['amount'] != 'Unknown', axis=1)]
@@ -60,24 +77,28 @@ amount_map = {
     '$25,000,001 - $50,000,000': 37500000,
     '$50,000,000 +': 75000000
 }
-print(house_transactions['amount'].unique())
 house_transactions['amount_val'] = house_transactions['amount'].map(lambda x: amount_map[x])
-table_vals.append(['Dollars'] + np.round(house_transactions.describe()['amount_val'].values, decimals=2).tolist())
 
 # market cap for unique stocks
 house_tickers = house_transactions['ticker'].unique()
 market_cap['Market Cap'] = np.abs(market_cap['Market Cap'])
 market_caps = pd.DataFrame({'ticker': house_tickers})
 market_caps = market_caps.merge(market_cap, left_on='ticker', right_on='ticker')
-table_vals.append(['Dollars'] + np.round(market_caps.describe()['Market Cap'].values, decimals=2).tolist())
-
 
 # market cap for each transaction
 market_cap['Market Cap'] = np.abs(market_cap['Market Cap'])
 house_transactions = house_transactions.merge(market_cap, left_on='ticker', right_on='ticker')
-table_vals.append(['Dollars'] + np.round(house_transactions.describe()['Market Cap'].values, decimals=2).tolist())
 
+# representatives that trade
+reps_that_trade = house_returns.groupby('representative').first()
 
+# add data to table
+table_vals.append(['Buy: 1,\nSell: 0'] + np.round(house_transactions.describe()['direction'].values, decimals=2).tolist())
+table_vals.append(['Dollars'] + np.round(house_transactions.describe()['amount_val'].values, decimals=2).tolist())
+table_vals.append(['Thousand Dollars'] + np.round(market_caps.describe()['Market Cap'].values, decimals=2).tolist())
+table_vals.append(['Thousand Dollars'] + np.round(house_transactions.describe()['Market Cap'].values, decimals=2).tolist())
+table_vals.append(['Years'] + np.round(reps_that_trade.describe()['age'].values, decimals=2).tolist())
+table_vals.append(['Years'] + np.round(reps_that_trade.describe()['Years in office'].values, decimals=2).tolist())
 
 # Draw table
 the_table = plt.table(cellText=table_vals,
