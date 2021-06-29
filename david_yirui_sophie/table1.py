@@ -6,17 +6,18 @@ import datetime
 
 fig = plt.figure() 
 ax = fig.add_subplot(111)
-col_labels = ['Unit', 'N', 'Mean', 'SD', 'Min', 'P25', 'Median', 'P75', 'Max']
+col_labels = ['Unit', 'N', 'Mean', 'SD', 'Min', 'P25', 'Median', 'P75', 'Max', 'prop 1s']
 # row_labels = ['Age', 'Buy or Sell', 'Years in Office', 'Party']
-row_labels = ['Age', 'Years in Office', 'Party', 'Buy or Sell', 'Amount', 'Market Cap Unique Tickers', 'Market Cap All Trades', 'Senators that trade age', 'Senators that trade years in office']
+row_labels = ['Age', 'Years in Office', 'Party', 'proportion buys', 'Buy or Sell','Amount', 'Market Cap Unique Tickers', 'Market Cap All Trades', 'Senators that trade age', 'Senators that trade years in office']
 table_vals = []
 
-senate_transactions = pd.read_csv('senate_transactions.csv')
+senate_transactions = pd.read_csv('senate_returns.csv')
 senate_members = pd.read_csv('senate_members.csv')
 senate_returns = pd.read_csv('senate_returns.csv')
 market_cap = pd.read_csv('MarketCap_Dec31_2020.csv')
 
 senate_transactions = senate_transactions[senate_transactions.apply(lambda x: x['ticker'] != '--', axis=1)]
+senate_transactions = senate_transactions[senate_transactions.apply(lambda x: x['type'] != 'Purchase', axis=1)]
 
 pd.set_option('display.max_rows', None)  
 pd.set_option('display.max_columns', None)  
@@ -28,6 +29,7 @@ senate_members['Senator'] = senate_members['Senator'].str.split(' ').str[0] + se
 senate_transactions['senator'] = senate_transactions['senator'].str.split(' ').str[0] + senate_transactions['senator'].str.split(' ').str[-1]
 
 senate_members = senate_members[senate_members.apply(lambda x: x['Party'] == 'Democratic' or x['Party'] == 'Republican', axis=1)]
+senate_transactions = senate_transactions[senate_transactions.apply(lambda x: x['Party'] == 'Democratic' or x['Party'] == 'Republican', axis=1)]
 
 end_date = datetime.date(2020, 12, 31)
 
@@ -43,7 +45,7 @@ senate_returns['today'] = '2021-05-31'
 senate_returns['today'] = pd.to_datetime(senate_returns['today'])
 senate_returns['age'] = np.floor((senate_returns['today'] - senate_returns['Born']).dt.days / 365.2425)
 
-table_vals.append(['Years'] + np.round(senate_members.describe()['age'].values, decimals=2).tolist())
+table_vals.append(['Years'] + np.round(senate_members.describe()['age'].values, decimals=2).tolist() + [None])
 
 # years in office
 senate_members['Assumed office'] = pd.to_datetime(senate_members['Assumed office'])
@@ -52,18 +54,19 @@ senate_members['Years in office'] = np.floor((senate_members['today'] - senate_m
 senate_returns['Assumed office'] = pd.to_datetime(senate_returns['Assumed office'])
 senate_returns['Years in office'] = np.floor((senate_returns['today'] - senate_returns['Assumed office']).dt.days / 365.2425)
 
-table_vals.append(['Years'] + np.round(senate_members.describe()['Years in office'].values, decimals=2).tolist())
+table_vals.append(['Years'] + np.round(senate_members.describe()['Years in office'].values, decimals=2).tolist() + [None])
 
 # party
 senate_members['Party'] = senate_members['Party'].map({'Democratic': 1, 'Republican': 0})
-table_vals.append(['Democratic: 1,\nRepublican: 0'] + np.round(senate_members.describe()['Party'].values, decimals=2).tolist())
+table_vals.append(['Democratic: 1,\nRepublican: 0'] + np.round(senate_members.describe()['Party'].values, decimals=2).tolist() + [None])
 
-senate_transactions = senate_transactions.merge(senate_members, left_on='senator', right_on='Senator')
-print('Proportion democratic trades:', np.sum(senate_transactions['Party']) / len(senate_transactions['Party']))
+senate_transactions['Party'] = senate_transactions['Party'].map({'Democratic': 1, 'Republican': 0})
+proportion_democratic = np.sum(senate_transactions['Party']) / len(senate_transactions['Party'])
+table_vals.append(['Proportion Democratic'] + [None] * 8 + [proportion_democratic])
+print('Proportion democratic trades:', proportion_democratic)
 
 # buy or sell
 senate_transactions['direction'] = senate_transactions['type'].map(lambda x: 1 if x == 'Purchase' else 0)
-# print(senate_transactions['direction'])
 print('Proportion of buys:', np.sum(senate_transactions['direction']) / len(senate_transactions['direction']))
 
 # amount
@@ -96,12 +99,12 @@ senate_transactions = senate_transactions.merge(market_cap, left_on='ticker', ri
 senators_that_trade = senate_returns.groupby('senator').first()
 
 # add data to table
-table_vals.append(['Buy: 1,\nSell: 0'] + np.round(senate_transactions.describe()['direction'].values, decimals=2).tolist())
-table_vals.append(['Dollars'] + np.round(senate_transactions.describe()['amount_val'].values, decimals=2).tolist())
-table_vals.append(['Thousand Dollars'] + np.round(market_caps.describe()['Market Cap'].values, decimals=2).tolist())
-table_vals.append(['Thousand Dollars'] + np.round(senate_transactions.describe()['Market Cap'].values, decimals=2).tolist())
-table_vals.append(['Years'] + np.round(senators_that_trade.describe()['Age'].values, decimals=2).tolist())
-table_vals.append(['Years'] + np.round(senators_that_trade.describe()['Years in office'].values, decimals=2).tolist())
+table_vals.append(['Buy: 1,\nSell: 0'] + np.round(senate_transactions.describe()['direction'].values, decimals=2).tolist() + [None])
+table_vals.append(['Dollars'] + np.round(senate_transactions.describe()['amount_val'].values, decimals=2).tolist() + [None])
+table_vals.append(['Thousand Dollars'] + np.round(market_caps.describe()['Market Cap'].values, decimals=2).tolist() + [None])
+table_vals.append(['Thousand Dollars'] + np.round(senate_transactions.describe()['Market Cap'].values, decimals=2).tolist() + [None])
+table_vals.append(['Years'] + np.round(senators_that_trade.describe()['Age'].values, decimals=2).tolist() + [None])
+table_vals.append(['Years'] + np.round(senators_that_trade.describe()['Years in office'].values, decimals=2).tolist() + [None])
 
 # Draw table
 the_table = plt.table(cellText=table_vals,
@@ -118,5 +121,5 @@ plt.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=Fal
 plt.tick_params(axis='y', which='both', right=False, left=False, labelleft=False)
 for pos in ['right','top','bottom','left']:
     plt.gca().spines[pos].set_visible(False)
-plt.savefig('senate-table1.png', bbox_inches='tight', pad_inches=0.05)
+plt.savefig('senate-table1-sales.pdf', bbox_inches='tight', pad_inches=0.05)
 
